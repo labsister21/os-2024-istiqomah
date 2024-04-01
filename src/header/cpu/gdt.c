@@ -6,9 +6,10 @@ struct GlobalDescriptorTable global_descriptor_table = {
         // Null Descriptor
         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
         // Kernel Code Segment Descriptor
-        {0xFFFF, 0, 0, 0x9A, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0xFFFF, 0, 0, 0xA, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
         // Kernel Data Segment Descriptor
-        {0xFFFF, 0, 0, 0x92, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+        {0xFFFF, 0, 0, 0x2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+        // ... You can add more descriptors here ...
     }
 };
 

@@ -13,18 +13,11 @@
  * @param c column
 */
 void framebuffer_set_cursor(uint8_t r, uint8_t c) {
-    // Calculate the offset based on the row and column
-    #define FRAMEBUFFER_COLS 80 // Assuming 80 columns in the framebuffer
-
-    uint16_t offset = (r * FRAMEBUFFER_COLS + c) * 2;
-
-    // Set the cursor position by sending the high byte of the offset to port 0x3D4
-    port_byte_out(0x3D4, 0x0F);
-    port_byte_out(0x3D5, (uint8_t)(offset >> 8));
-
-    // Set the cursor position by sending the low byte of the offset to port 0x3D4
-    port_byte_out(0x3D4, 0x0E);
-    port_byte_out(0x3D5, (uint8_t)offset);
+    uint16_t cursor_index = r * 80 + c;
+    out(CURSOR_PORT_CMD, 0x0F);
+    out(CURSOR_PORT_DATA, (uint8_t) (cursor_index & 0xFF));
+    out(CURSOR_PORT_CMD, 0x0E);
+    out(CURSOR_PORT_DATA, (uint8_t) ((cursor_index >> 8) & 0xFF));
 }
 
 
@@ -39,17 +32,11 @@ void framebuffer_set_cursor(uint8_t r, uint8_t c) {
  * @param bg  Background color
  */
 void framebuffer_write(uint8_t row, uint8_t col, char c, uint8_t fg, uint8_t bg) {
-    // Calculate the offset of the character in the framebuffer
-    #define FRAMEBUFFER_WIDTH 25 // Assuming 80 columns in the framebuffer
-
-    uint16_t offset = (row * FRAMEBUFFER_WIDTH + col) * 2;
-
-    // Set the character at the specified location
-    framebuffer[offset] = c;
-    
-    // Set the color attributes at the specified location
-    framebuffer[offset + 1] = (bg << 4) | (fg & 0x0F);
+    int frame_buffer_index = (row * 80 + col) * 2;
+    FRAMEBUFFER_MEMORY_OFFSET[frame_buffer_index] = c;
+    FRAMEBUFFER_MEMORY_OFFSET[frame_buffer_index + 1] = (bg << 4) | fg;   
 }
+
 
 /**
  * Set all cell in framebuffer character to 0x00 (empty character)
@@ -58,6 +45,12 @@ void framebuffer_write(uint8_t row, uint8_t col, char c, uint8_t fg, uint8_t bg)
  *
  */
 void framebuffer_clear(void) {
-    memset(framebuffer, 0x00, FRAMEBUFFER_SIZE);
-    memset(framebuffer + 1, 0x07, FRAMEBUFFER_SIZE - 1);
+    size_t FRAMEBUFFER_MEMORY_OFFSET_size = 80 * 25 * 2;
+    for (size_t i = 0; i < FRAMEBUFFER_MEMORY_OFFSET_size; i++)
+        if (i % 2 == 0){
+            FRAMEBUFFER_MEMORY_OFFSET[i] = 0x00;
+        }
+        else {
+            FRAMEBUFFER_MEMORY_OFFSET[i] = 0x07;
+        }
 }
