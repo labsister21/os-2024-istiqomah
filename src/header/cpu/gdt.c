@@ -1,20 +1,102 @@
 #include "gdt.h"
 
-// Define the global_descriptor_table
-struct GlobalDescriptorTable global_descriptor_table = {
+/**
+ * global_descriptor_table, predefined GDT.
+ * Initial SegmentDescriptor already set properly according to GDT definition in Intel Manual & OSDev.
+ * Table entry : [{Null Descriptor}, {Kernel Code}, {Kernel Data (variable, etc)}, ...].
+ */
+static struct GlobalDescriptorTable global_descriptor_table = {
     .table = {
-        // Null Descriptor
-        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-        // Kernel Code Segment Descriptor
-        {0xFFFF, 0, 0, 0xA, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-        // Kernel Data Segment Descriptor
-        {0xFFFF, 0, 0, 0x2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-        // ... You can add more descriptors here ...
+        {
+            // NULL DESCRIPTOR
+            .segment_low       = 0,
+            .base_low          = 0,
+            .base_mid          = 0,
+            .type_bit          = 0,
+            .non_system        = 0,
+            .DPL               = 0,
+            .P                 = 0,
+            .limit             = 0,
+            .AVL               = 0,
+            .L                 = 0,
+            .DB                = 0,
+            .G                 = 0,
+            .base_high         = 0
+        },
+        {
+            // KERNEL CODE
+            .segment_low       = 0xFFFF,
+            .base_low          = 0,
+            .base_mid          = 0,
+            .type_bit          = 0b1010,
+            .non_system        = 1,
+            .DPL               = 0,
+            .P                 = 1,
+            .limit             = 0b1111,
+            .AVL               = 0,
+            .L                 = 1,
+            .DB                = 1,
+            .G                 = 1,
+            .base_high         = 0
+        },
+        {
+            // KERNEL DATA
+            .segment_low       = 0xFFFF,
+            .base_low          = 0,
+            .base_mid          = 0,
+            .type_bit          = 0b0010,
+            .non_system        = 1,
+            .DPL               = 0,
+            .P                 = 1,
+            .limit             = 0b1111,
+            .AVL               = 0,
+            .L                 = 0,
+            .DB                = 1,
+            .G                 = 1,
+            .base_high         = 0
+        },
+        {
+            // USER MODE CODE
+            .segment_low       = 0xFFFF,
+            .base_low          = 0,
+            .base_mid          = 0,
+            .type_bit          = 0b1010,
+            .non_system        = 1,
+            .DPL               = 3,
+            .P                 = 1,
+            .limit             = 0b1111,
+            .AVL               = 0,
+            .L                 = 1,
+            .DB                = 1,
+            .G                 = 1,
+            .base_high         = 0
+        },
+        {
+            // USER MODE DATA
+            .segment_low       = 0xFFFF,
+            .base_low          = 0,
+            .base_mid          = 0,
+            .type_bit          = 0b0010,
+            .non_system        = 1,
+            .DPL               = 3,
+            .P                 = 1,
+            .limit             = 0b1111,
+            .AVL               = 0,
+            .L                 = 0,
+            .DB                = 1,
+            .G                 = 1,
+            .base_high         = 0
+        },
+        {0}
     }
 };
 
-// Define the _gdt_gdtr
+/**
+ * _gdt_gdtr, predefined system GDTR. 
+ * GDT pointed by this variable is already set properly.
+ * From: https://wiki.osdev.org/Global_Descriptor_Table, GDTR.size is GDT size minus 1.
+ */
 struct GDTR _gdt_gdtr = {
-    .size = sizeof(global_descriptor_table.table) - 1,
-    .address = &global_descriptor_table
+    sizeof(global_descriptor_table)-1,
+    &global_descriptor_table
 };

@@ -35,17 +35,29 @@ struct SegmentDescriptor {
     uint8_t type_bit   : 4;
     uint8_t non_system : 1;
     // Last 8-bit (Bit 48 to 63)
+    // uint8_t base_high;
+    // uint8_t segment_limit_high;
+    // uint8_t type_bit_high : 1;
+    // uint8_t descriptor_privilege_level : 2;
+    // uint8_t present : 1;
+    // uint8_t segment_limit_high_bit : 4;
+    // uint8_t available : 1;
+    // uint8_t long_mode : 1;
+    // uint8_t default_operation_size : 1;
+    // uint8_t granularity : 1;
+    // uint8_t base_high_bit : 4;
+    
+    uint8_t DPL : 2;
+    uint8_t P : 1;
+    // ini 47
+
+    uint8_t limit: 4;
+    uint8_t AVL : 1;
+    uint8_t L : 1;
+    uint8_t DB : 1;
+    uint8_t G : 1;
+
     uint8_t base_high;
-    uint8_t segment_limit_high;
-    uint8_t type_bit_high : 1;
-    uint8_t descriptor_privilege_level : 2;
-    uint8_t present : 1;
-    uint8_t segment_limit_high_bit : 4;
-    uint8_t available : 1;
-    uint8_t long_mode : 1;
-    uint8_t default_operation_size : 1;
-    uint8_t granularity : 1;
-    uint8_t base_high_bit : 4;
 
 } __attribute__((packed));
 
