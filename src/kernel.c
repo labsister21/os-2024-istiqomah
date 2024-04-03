@@ -39,3 +39,4 @@ void kernel_setup(void) {
     write_blocks(&b, 17, 1);
     while (true);
 }
+
