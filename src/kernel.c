@@ -48,8 +48,8 @@ void kernel_setup(void)
 {
     load_gdt(&_gdt_gdtr);
     pic_remap();
-    initialize_idt();
     activate_keyboard_interrupt();
+    initialize_idt();
     framebuffer_clear();
     framebuffer_set_cursor(0, 0);
     initialize_filesystem_fat32();

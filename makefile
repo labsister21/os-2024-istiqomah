@@ -20,11 +20,8 @@ DISK_NAME     = storage
 disk:
 	@qemu-img create -f raw $(OUTPUT_FOLDER)/$(DISK_NAME).bin 4M
 
-
-
-
 run: all
-	@qemu-system-i386 -s -S -drive file=sample-image.bin,format=raw,if=ide,index=0,media=disk -cdrom OS2024.iso
+	@qemu-system-i386 -s -S -drive file=bin/storage.bin,format=raw,if=ide,index=0,media=disk -cdrom OS2024.iso
 
 all: build
 build: iso
@@ -47,6 +44,8 @@ kernel:
 	@$(LIN) $(LFLAGS) bin/*.o -o $(OUTPUT_FOLDER)/kernel
 	@echo Linking object files and generate elf32...
 	@rm -f *.o
+
+
 
 iso: kernel
 	@mkdir -p $(OUTPUT_FOLDER)/iso/boot/grub
