@@ -4,7 +4,9 @@
 #include "header/stdlib/string.h"
 
 static int row = 0;
-//static int col = 0;
+static int col = 0;
+static bool key_pressed = false;
+static bool backspace_pressed = false;
 
 const char keyboard_scancode_1_to_ascii_map[256] = {
       0, 0x1B, '1', '2', '3', '4', '5', '6',  '7', '8', '9',  '0',  '-', '=', '\b', '\t',
@@ -43,18 +45,49 @@ void get_keyboard_buffer(char *buf) {
     keyboard_state.keyboard_buffer = '\0';
 }
 
+int8_t terminal_length = 0;
+
 void keyboard_isr(void) {
-    // Read the scancode from the keyboard port
-    uint8_t scancode = in(KEYBOARD_DATA_PORT);
-
-    char ascii_char = keyboard_scancode_1_to_ascii_map[scancode];
-    if (ascii_char != 0 && ascii_char != '\n') {
-        // Print the ASCII character to the screen
-        keyboard_state.keyboard_buffer = keyboard_scancode_1_to_ascii_map[scancode];
-    } else if (ascii_char == '\n') {
-        framebuffer_set_cursor(row++, 0);
+    if (!keyboard_state.keyboard_input_on) {
+        keyboard_state.keyboard_buffer = '\0';
+    } else {
+        uint8_t scancode = in(KEYBOARD_DATA_PORT);
+        char mapped_char = keyboard_scancode_1_to_ascii_map[scancode];
+        if (mapped_char == '\b') {
+            if (col >= terminal_length + 1) {
+                backspace_pressed = true;
+                framebuffer_write(row, col-1, '\0', 0x0F, 0x00);
+                framebuffer_set_cursor(row, col-1);
+                col -= 1;
+                keyboard_state.keyboard_buffer = '\0';
+            }
+        } else if (scancode == 0x1C && !key_pressed) {
+            keyboard_state_deactivate();
+            row++;
+            col = 0;
+            framebuffer_set_cursor(row, col);
+            key_pressed = true;
+            keyboard_state_activate();
+        } else if (scancode >= 0x02 && scancode <= 0x4A && !key_pressed) {
+            framebuffer_write(row, col, mapped_char, 0x0F, 0x00);
+            framebuffer_set_cursor(row, col + 1);
+            keyboard_state.keyboard_buffer = mapped_char;
+            key_pressed = true;
+        } else if (scancode >= 0x80 && backspace_pressed) {
+            backspace_pressed = false;
+            if (keyboard_state.keyboard_buffer != '\0') {
+                keyboard_state.keyboard_buffer = '\0';
+                col--;
+            }
+        } else if (scancode >= 0x80 && scancode != 0x9C && key_pressed) {
+            key_pressed = false;
+            col++;
+        } else if (scancode == 0x9C) {
+            key_pressed = false;
+        } else if (scancode == 0xe0) {
+            col--;
+            framebuffer_set_cursor(row, col);
+        }
     }
-
-    // End of interrupt signal
-    out(0x20, 0x20);
+    pic_ack(IRQ_KEYBOARD);
 }

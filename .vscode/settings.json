@@ -1,6 +1,13 @@
 {
     "debug.onTaskErrors": "debugAnyway",
     "files.associations": {
-        "framebuffer.h": "c"
+        "framebuffer.h": "c",
+        "portio.h": "c",
+        "disk.h": "c",
+        "fat32.h": "c",
+        "keyboard.h": "c",
+        "interrupt.h": "c",
+        "kernel-entrypoint.h": "c",
+        "gdt.h": "c"
     },
 }
