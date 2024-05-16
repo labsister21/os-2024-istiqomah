@@ -7,7 +7,8 @@ __attribute__((aligned(0x1000))) struct PageDirectory _paging_kernel_page_direct
     .table = {
         [0] = {
             .flag.present_bit       = 1,
-            .flag.write_bit         = 1,
+            .flag.
+            write_bit         = 1,
             .flag.page_size_bit     = 1,
             .lower_address          = 0,
         },
