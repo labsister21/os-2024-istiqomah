@@ -75,16 +75,22 @@ void puts(const char* str, uint32_t length, uint32_t attribute) {
         if (str[i] == '\n') {
             cursor_row++;
             cursor_col = 0;
+            set_col(cursor_col);
+            set_row(cursor_row);
         } else {
             framebuffer_write(cursor_row, cursor_col, str[i], fg, bg);
             cursor_col++;
+            set_col(cursor_col);
             if (cursor_col >= 80) {
                 cursor_col = 0;
                 cursor_row++;
+                set_col(cursor_col);
+                set_row(cursor_row);
             }
         }
         if (cursor_row >= 25) {
             cursor_row = 0; // Menggulirkan layar jika perlu
+            set_col(cursor_col);
         }
     }
     update_cursor_position();

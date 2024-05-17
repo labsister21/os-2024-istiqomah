@@ -30,6 +30,26 @@ const char keyboard_scancode_1_to_ascii_map[256] = {
 
 struct KeyboardDriverState keyboard_state = {false, false, '\0'};
 
+// Fungsi untuk mendapatkan nilai row
+int get_row(void) {
+    return row;
+}
+
+// Fungsi untuk mengubah nilai row
+void set_row(int value) {
+    row = value;
+}
+
+// Fungsi untuk mendapatkan nilai col
+int get_col(void) {
+    return col;
+}
+
+// Fungsi untuk mengubah nilai col
+void set_col(int value) {
+    col = value;
+}
+
 void keyboard_state_activate(void) {
     keyboard_state.keyboard_input_on = true;
     // Enable keyboard interrupt here (implementation dependent)

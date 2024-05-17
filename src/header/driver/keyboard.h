@@ -58,5 +58,11 @@ void get_keyboard_buffer(char *buf);
  */
 void keyboard_isr(void);
 
+int get_row(void);
+void set_row(int value);
+
+int get_col(void);
+void set_col(int value);
+
 #endif
 
