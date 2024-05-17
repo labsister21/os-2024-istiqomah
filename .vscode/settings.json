@@ -8,6 +8,9 @@
         "keyboard.h": "c",
         "interrupt.h": "c",
         "kernel-entrypoint.h": "c",
-        "gdt.h": "c"
+        "gdt.h": "c",
+        "paging.h": "c",
+        "string.h": "c",
+        "stddef.h": "c"
     },
 }

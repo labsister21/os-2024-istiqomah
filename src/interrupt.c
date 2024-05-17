@@ -2,6 +2,8 @@
 #include "header/cpu/portio.h"
 #include "header/cpu/idt.h"
 #include "header/driver/keyboard.h"
+#include "header/text/framebuffer.h"
+#include "header/stdlib/string.h"
 
 void io_wait(void) {
     out(0x80, 0);
@@ -37,13 +39,7 @@ void pic_remap(void) {
     out(PIC2_DATA, PIC_DISABLE_ALL_MASK);
 }
 
-void main_interrupt_handler(struct InterruptFrame frame) {
-    switch (frame.int_number) {
-        case PIC1_OFFSET + IRQ_KEYBOARD:
-            keyboard_isr();
-            break;
-    }
-}
+
 
 void activate_keyboard_interrupt(void) {
     out(PIC1_DATA, in(PIC1_DATA) & ~(1 << IRQ_KEYBOARD));
@@ -61,58 +57,77 @@ void set_tss_kernel_current_stack(void) {
     _interrupt_tss_entry.esp0 = stack_ptr + 8; 
 }
 
-// uint8_t row_now = 0;
+static uint8_t cursor_row = 0;
+static uint8_t cursor_col = 0;
 
-// void puts(char *str, uint32_t len, uint32_t color) {
-//     if (memcmp(str,"cls",3) == 0)
-//     {
-//         row_now = 0;
-//         for (uint32_t i = 0; i < 25; i++)
-//         {
-//             for (uint32_t j = 0; j < 80; j++)
-//             {
-//                 framebuffer_write(i, j, ' ', color, 0);
-//             }
-//         }
-//     }
-//     else
-//     {
-//         row_now++;
-//         uint32_t col = 0;
-//         for (uint32_t i = 0; i < len; i++)
-//         {
-//             if (str[i] == '\n'){
-//                 row_now ++;
-//                 col = 0;
-//             }
-//             else{
-//                 framebuffer_write(row_now, col, str[i], color, 0);
-//                 col++;
-//             }
-//         }
-//         row_now ++;
-//     }
-// }
+void update_cursor_position() {
+    framebuffer_set_cursor(cursor_row, cursor_col);
+}
 
-// void syscall(struct InterruptFrame frame) {
-//     switch (frame.cpu.general.eax) {
-//         case 0:
-//             *((int8_t*) frame.cpu.general.ecx) = read(
-//                 *(struct FAT32DriverRequest*) frame.cpu.general.ebx
-//             );
-//             break;
-//         case 4:
-//             get_keyboard_buffer((char*) frame.cpu.general.ebx);
-//             break;
-//         case 6:
-//             puts(
-//                 (char*) frame.cpu.general.ebx, 
-//                 frame.cpu.general.ecx, 
-//                 frame.cpu.general.edx
-//             ); // Assuming puts() exist in kernel
-//             break;
-//         case 7: 
-//             keyboard_state_activate();
-//             break;
-//     }
-// }
+void puts(const char* str, uint32_t length, uint32_t attribute) {
+    uint8_t fg = attribute & 0x0F; // Ambil 4 bit pertama untuk foreground
+    uint8_t bg = (attribute >> 4) & 0x0F; // Ambil 4 bit berikutnya untuk background
+
+    for (uint32_t i = 0; i < length; i++) {
+        if (str[i] == '\0') {
+            break; // Berhenti jika mencapai akhir string
+        }
+        if (str[i] == '\n') {
+            cursor_row++;
+            cursor_col = 0;
+        } else {
+            framebuffer_write(cursor_row, cursor_col, str[i], fg, bg);
+            cursor_col++;
+            if (cursor_col >= 80) {
+                cursor_col = 0;
+                cursor_row++;
+            }
+        }
+        if (cursor_row >= 25) {
+            cursor_row = 0; // Menggulirkan layar jika perlu
+        }
+    }
+    update_cursor_position();
+}
+uint8_t row_now = 0;
+void puts_terminal(char *str, uint32_t len, uint32_t color)
+{
+    for (uint32_t i = 0; i < len; i++)
+    {
+        framebuffer_write(row_now, i, str[i], color, 0);
+    }
+}
+
+void syscall(struct InterruptFrame frame) {
+    switch (frame.cpu.general.eax) {
+        case 0:
+            *((int8_t*) frame.cpu.general.ecx) = read(
+                *(struct FAT32DriverRequest*) frame.cpu.general.ebx
+            );
+            break;
+        case 4:
+            get_keyboard_buffer((char*) frame.cpu.general.ebx);
+            break;
+        case 6:
+            puts(
+                (char*) frame.cpu.general.ebx, 
+                frame.cpu.general.ecx, 
+                frame.cpu.general.edx
+            ); // Assuming puts() exist in kernel
+            break;
+        case 7: 
+            keyboard_state_activate();
+            break;
+    }
+}
+
+void main_interrupt_handler(struct InterruptFrame frame) {
+    switch (frame.int_number) {
+        case PIC1_OFFSET + IRQ_KEYBOARD:
+            keyboard_isr();
+            break;
+        case (0x30):
+            syscall(frame);
+            break;
+    }
+}

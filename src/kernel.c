@@ -112,7 +112,7 @@ void kernel_setup(void) {
 
     // Allocate first 4 MiB virtual memory
     paging_allocate_user_page_frame(&_paging_kernel_page_directory, (uint8_t*) 0);
-
+    
     // Write shell into memory
     struct FAT32DriverRequest request = {
         .buf                   = (uint8_t*) 0,
