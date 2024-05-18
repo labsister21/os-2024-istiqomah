@@ -35,8 +35,17 @@ struct charBuff {
     uint32_t count;
 };
 
+uint32_t strlen(char* buf) {
+    uint32_t count = 0;
+    while (*buf != '\0') {
+        count++;
+        buf++;
+    }
+    return count;
+}
+
 // StringN operations
-void stringn_make(struct StringN* str) {
+void stringn_create(struct StringN* str) {
     memset(str->buf, '\0', 256);
     str->len = 0;
 }
@@ -108,7 +117,7 @@ int main(void) {
     };
 
     struct StringN input;
-    stringn_make(&input);
+    stringn_create(&input);
     
 
     cetak_prompt();
@@ -119,7 +128,7 @@ int main(void) {
         if (buf == '\n') {
             parseCommand((uint32_t) input.buf);
             
-            stringn_make(&input);
+            stringn_create(&input);
         } else if (buf != '\0') {
             syscall(5, (uint32_t) &args, 2, 0x7);
             stringn_appendchar(&input, buf);
