@@ -2,7 +2,7 @@
 #include "header/filesystem/fat32.h"
 #include "header/stdlib/string.h"
 
-uint32_t currentDirCluster = 0x2;
+uint32_t currentDirCluster;
 struct FAT32DirectoryTable currentDir;
 void syscall(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
     __asm__ volatile("mov %0, %%ebx" : /* <Empty> */ : "r"(ebx));
@@ -14,7 +14,6 @@ void syscall(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
     __asm__ volatile("int $0x30");
 }
 
-
 // Helper structs
 struct SyscallPutsArgs {
     char* buf;
@@ -22,6 +21,11 @@ struct SyscallPutsArgs {
     uint32_t fg_color;
     uint32_t bg_color;
 };
+
+void set_current_cluster() {
+    struct FAT32DirectoryEntry curr_entry = currentDir.table[0];
+    currentDirCluster = (curr_entry.cluster_high << 16) | curr_entry.cluster_low;
+}
 
 struct StringN {
     char buf[256];
@@ -41,6 +45,7 @@ uint32_t strlen(char* buf) {
     }
     return count;
 }
+
 void puts(char* buf, uint32_t color) {
     syscall(6, (uint32_t) buf, strlen(buf), color);
 }
@@ -68,15 +73,10 @@ void cetak_prompt() {
     char* os1 = "Istiqomah@OS-IF2230:";
     char* os2 = "/";
     char* os3 = "$";
-    syscall(6, (uint32_t)os1 , strlen(os1), 0x5);
-    syscall(6, (uint32_t)os2 , strlen(os2), 0x6);
-    syscall(6, (uint32_t)os3 , strlen(os3), 0x7);
+    puts(os1, 0x5);
+    puts(os2, 0x6);
+    puts(os3, 0x7);
 }
-
-// void set_current_cluster() {
-//     struct FAT32DirectoryEntry curr_entry = currentDir.table[0];
-//     currentDirCluster = (curr_entry.cluster_high << 16) | curr_entry.cluster_low;
-// }
 
 void mkdir(struct StringN folder_Name){
     struct FAT32DriverRequest request = {
@@ -85,7 +85,7 @@ void mkdir(struct StringN folder_Name){
         .buffer_size = 0,
     };
     if(folder_Name.len > 8){
-        syscall(6, (uint32_t) "Directory name is too long! (Maximum 8 Characters)", 51, 0xC);
+        puts("Directory name is too long! (Maximum 8 Characters)", 0xC);
     }
     else{
         for (uint8_t i = 0; i < folder_Name.len; i++) {
@@ -95,20 +95,21 @@ void mkdir(struct StringN folder_Name){
         syscall(2, (uint32_t) &request, (uint32_t) &retcode, 0);
         switch (retcode) {
         case 0:
-            syscall(6, (uint32_t)   "Operation success! " , 20, 0xE);
-            syscall(6, (uint32_t) "'", 1, 0xE);
-            syscall(6, (uint32_t) folder_Name.buf, strlen(folder_Name.buf), 0xE);
-            syscall(6, (uint32_t) "'", 1, 0xE);
-            syscall(6, (uint32_t) " has been created..\n", 20, 0xE);
+            puts("Operation success! " , 0xE);
+            puts("'", 0xE);
+            puts(folder_Name.buf, 0xE);
+            puts("'", 0xE);
+            puts(" has been created..\n", 0xE);
+
             break;
         case 1:
-            syscall(6, (uint32_t) "mkdir: cannot create directory ", 32, 0xC);
-            syscall(6, (uint32_t) "'", 1, 0xC);
+            puts("mkdir: cannot create directory ", 0xC);
+            puts("'", 0xC);
 
-            syscall(6, (uint32_t) folder_Name.buf, strlen(folder_Name.buf), 0xC);
-            syscall(6, (uint32_t) "'", 1, 0xC);
+            puts(folder_Name.buf, 0xC);
+            puts("'", 0xC);
             
-            syscall(6, (uint32_t) ": File exists", 13, 0xC);
+            puts(": File exists", 0xC);
             
             break;
         default:
@@ -117,34 +118,22 @@ void mkdir(struct StringN folder_Name){
     }
 }
 
-void ls(){
-    struct FAT32DirectoryTable table = currentDir;
-    for (int i = 2; i < 64; i++) {
-        // Check if entry is empty
-        struct FAT32DirectoryEntry entry = table.table[i];
-        puts(entry.name, 0x7);
+void ls() {
+    puts("Listing directory contents:\n", 0x7);
+    syscall(3, currentDirCluster, (uint32_t) &currentDir, 1);
+    for (unsigned int i = 0; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
+        struct FAT32DirectoryEntry entry = currentDir.table[i];
+
+        // Cek apakah entry kosong
         if (entry.name[0] == '\0') {
-            break;
+            continue; // Lewati entry kosong
         }
 
-        // Print entry name
-        struct SyscallPutsArgs args = {
-            .buf = entry.name,
-            .count = strlen(args.buf),
-            .fg_color = 0x7,
-            .bg_color = 0x0
-        };
+        // Cetak nama entry
+        puts(entry.name, 0x7);
 
-        syscall(6, (uint32_t) &entry.name, strlen(entry.name), 0);
-
-        // Print space between entries
-        struct SyscallPutsArgs args2 = {
-            .buf = " ",
-            .count = strlen(args2.buf),
-            .fg_color = 0x7,
-            .bg_color = 0x0
-        };
-        syscall(6, (uint32_t) &args2, args2.count, 0);
+        // Cetak spasi antara entry
+        puts(" ", 0x7);
     }
 }
 
@@ -169,21 +158,21 @@ void parseCommand(struct StringN input){
 
     if (memcmp(perintah.buf, "cd", 2) == 0)
     {
-        syscall(6, (uint32_t) "\ncd\n", 5, 0x2);
+        puts("\ncd\n", 0x2);
         cetak_prompt();
     } 
     else if (memcmp(perintah.buf, "ls", 2) == 0)
     {
-        syscall(6, (uint32_t) "\nls\n", 5, 0x2);
+        puts("\nls\n", 0x2);
         ls();
         cetak_prompt();
     }
     else if (memcmp(perintah.buf, "mkdir", 5) == 0)
     {
-        syscall(6, (uint32_t) "\nmkdir\n", 8, 0x2);
+        puts("\nmkdir\n", 0x2);
 
-        syscall(6, (uint32_t) variabel.buf, (uint32_t) variabel.len, 0x2);
-        syscall(6, (uint32_t) "\n", 2, 0x2);
+        puts(variabel.buf, 0x2);
+        puts("\n", 0x2);
 
         mkdir(variabel);
 
@@ -191,25 +180,25 @@ void parseCommand(struct StringN input){
     }
     else
     {
-        syscall(6, (uint32_t) "\nCommand not found\n", 20, 0x4);
+        puts("\nCommand not found\n", 0x4);
         cetak_prompt();
     }
 }
 
 int main(void) {
-    struct ClusterBuffer      cl[2]   = {0};
-    struct FAT32DriverRequest request = {
-        .buf                   = &cl,
-        .name                  = "shell",
-        .ext                   = "\0\0\0",
-        .parent_cluster_number = ROOT_CLUSTER_NUMBER,
-        .buffer_size           = CLUSTER_SIZE,
-    };
-    int32_t retcode = 0;
-    syscall(1, (uint32_t) &request, (uint32_t) &retcode, 0);
-
+    // struct ClusterBuffer      cl[2]   = {0};
+    // struct FAT32DriverRequest request = {
+    //     .buf                   = &currentDir,
+    //     .name                  = "root",
+    //     .ext                   = "\0\0\0",
+    //     .parent_cluster_number = ROOT_CLUSTER_NUMBER,
+    //     .buffer_size           = sizeof(struct FAT32DirectoryTable),
+    // };
+    // int32_t retcode = 0;
+    // syscall(1, (uint32_t) &request, (uint32_t) request.buffer_size, 0);
+    
     currentDirCluster = 2;
-    // set_current_cluster();
+    syscall(3, currentDirCluster,(uint32_t) &currentDir, 1);
     
     char buf;
     struct charBuff args = {

@@ -111,10 +111,18 @@ void syscall(struct InterruptFrame frame) {
                 *(struct FAT32DriverRequest*) frame.cpu.general.ebx
             );
             break;
+        case 1:
+            *((int8_t*) frame.cpu.general.ecx) = read_directory(
+                *(struct FAT32DriverRequest*) frame.cpu.general.ebx
+            );
+            break;
         case 2:
             *((int8_t*) frame.cpu.general.ecx) = write(
                 *(struct FAT32DriverRequest*) frame.cpu.general.ebx
             );
+            break;
+        case 3:
+            read_clusters((struct ClusterBuffer*) frame.cpu.general.ecx, frame.cpu.general.ebx, 1);
             break;
         case 4:
             get_keyboard_buffer((char*) frame.cpu.general.ebx);
