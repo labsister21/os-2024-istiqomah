@@ -2,6 +2,8 @@
 #include "header/filesystem/fat32.h"
 #include "header/stdlib/string.h"
 
+uint32_t currentDirCluster;
+struct FAT32DirectoryTable currentDir;
 void syscall(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
     __asm__ volatile("mov %0, %%ebx" : /* <Empty> */ : "r"(ebx));
     __asm__ volatile("mov %0, %%ecx" : /* <Empty> */ : "r"(ecx));
@@ -85,6 +87,15 @@ void stringn_appendstr(struct StringN* str, char* buf) {
     }
 }
 
+void cetak_prompt() {
+    char* os1 = "Istiqomah@OS-IF2230:";
+    char* os2 = "/";
+    char* os3 = "$";
+    syscall(6, (uint32_t)os1 , strlen(os1), 0x5);
+    syscall(6, (uint32_t)os2 , strlen(os2), 0x6);
+    syscall(6, (uint32_t)os3 , strlen(os3), 0x7);
+}
+
 int main(void) {
     struct ClusterBuffer      cl[2]   = {0};
     struct FAT32DriverRequest request = {
@@ -97,16 +108,60 @@ int main(void) {
     int32_t retcode;
     syscall(0, (uint32_t) &request, (uint32_t) &retcode, 0);
     
-    char buf[80];
-    char* os = "Istiqomah@OS-IF2230";
+    char buf;
 
-    syscall(6, (uint32_t)os , strlen(os), 0x3);
+    cetak_prompt();
+    
+    syscall(7, 0, 0, 0);
     while (true) {
-        syscall(7, 0, 0, 0);
         syscall(4, (uint32_t) &buf, 0, 0);
-        syscall(5, (uint32_t) &buf, 0xF, 0);
+        if (buf == '\n') {
+            syscall(6, (uint32_t) "\n", 2, 0x7);
+            cetak_prompt();
+        }
     }
-
     return 0;
 }
+void set_current_cluster() {
+    struct FAT32DirectoryEntry curr_entry = currentDir.table[0];
+    currentDirCluster = (curr_entry.cluster_high << 16) | curr_entry.cluster_low;
+} 
 
+void mkdir(struct StringN folder_Name){
+    struct FAT32DriverRequest request = {
+        .name = "\0\0\0\0\0\0\0\0",
+        .parent_cluster_number = currentDirCluster,
+        .buffer_size = 0,
+    };
+    if(folder_Name.len > 8){
+        syscall(6, (uint32_t) "Directory name is too long! (Maximum 8 Characters)", 51, 0xC);
+    }
+    else{
+        for (uint8_t i = 0; i < folder_Name.len; i++) {
+            request.name[i] = folder_Name.buf[i];
+        }
+        int8_t retcode;
+        syscall(2, (uint32_t) &request, (uint32_t) &retcode, 0);
+        switch (retcode) {
+        case 0:
+            syscall(6, (uint32_t)   "Operation success! " , 20, 0xE);
+            syscall(6, (uint32_t) "'", 1, 0xE);
+            syscall(6, (uint32_t) folder_Name.buf, strlen(folder_Name.buf), 0xE);
+            syscall(6, (uint32_t) "'", 1, 0xE);
+            syscall(6, (uint32_t) " has been created..", 19, 0xE);
+            break;
+        case 1:
+            syscall(6, (uint32_t) "mkdir: cannot create directory ", 32, 0xC);
+            syscall(6, (uint32_t) "'", 1, 0xC);
+
+            syscall(6, (uint32_t) folder_Name.buf, strlen(folder_Name.buf), 0xC);
+            syscall(6, (uint32_t) "'", 1, 0xC);
+            
+            syscall(6, (uint32_t) ": File exists", 13, 0xC);
+            
+            break;
+        default:
+            break;
+        }
+    }
+}

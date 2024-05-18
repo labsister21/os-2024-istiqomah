@@ -87,6 +87,7 @@ void keyboard_isr(void) {
             col = 0;
             framebuffer_set_cursor(row, col);
             key_pressed = true;
+            keyboard_state.keyboard_buffer = '\n';
             keyboard_state_activate();
         } else if (scancode >= 0x02 && scancode <= 0x4A && !key_pressed) {
             framebuffer_write(row, col, mapped_char, 0x0F, 0x00);
