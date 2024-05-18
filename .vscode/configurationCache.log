@@ -1,0 +1,1 @@
+{"buildTargets":["all","build","clean","disk","insert-shell","inserter","iso","kernel","run","user-shell"],"launchTargets":[],"customConfigurationProvider":{"workspaceBrowse":{"browsePath":[],"compilerArgs":[]},"fileIndex":[]}}

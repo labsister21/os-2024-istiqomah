@@ -1,0 +1,5 @@
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory '/mnt/c/Users/Axel Santadi/Documents/Cool_Yeah/Tingkat_2/Semester_4/OS/Tubes/slaklm/os-2024-istiqomah'
+qemu-img create -f raw bin/storage.bin 4M
+make: Leaving directory '/mnt/c/Users/Axel Santadi/Documents/Cool_Yeah/Tingkat_2/Semester_4/OS/Tubes/slaklm/os-2024-istiqomah'
+ 

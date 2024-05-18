@@ -14,7 +14,6 @@ void syscall(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
     __asm__ volatile("int $0x30");
 }
 
-
 // Helper structs
 struct StringN {
     char buf[256];
@@ -31,45 +30,13 @@ struct StringNList {
     struct StringNList_Node* tail;
 };
 
-// Helper functions
-uint32_t strlen(char* buf) {
-    uint32_t count = 0;
-    while (*buf != '\0') {
-        count++;
-        buf++;
-    }
-    return count;
-}
-
-bool strcmp(char* str1, char* str2) {
-    // Get lengths of str1 and str2
-    uint32_t len1 = strlen(str1);
-    uint32_t len2 = strlen(str2);
-
-    // If lengths are not equal, return false
-    if (len1 != len2) return false;
-    
-    // Compare each character
-    while (*str1) {
-        if (*str1 != *str2) return false;
-        str1++;
-        str2++;
-    }
-    
-    return true;
-}
-
-void strcpy(char* dest, char* src) {
-    while (*src) {
-        *dest = *src;
-        dest++;
-        src++;
-    }
-    *dest = '\0';
-}
+struct charBuff {
+    char* buf;
+    uint32_t count;
+};
 
 // StringN operations
-void stringn_create(struct StringN* str) {
+void stringn_make(struct StringN* str) {
     memset(str->buf, '\0', 256);
     str->len = 0;
 }
@@ -96,6 +63,30 @@ void cetak_prompt() {
     syscall(6, (uint32_t)os3 , strlen(os3), 0x7);
 }
 
+void set_current_cluster() {
+    struct FAT32DirectoryEntry curr_entry = currentDir.table[0];
+    currentDirCluster = (curr_entry.cluster_high << 16) | curr_entry.cluster_low;
+}
+
+void parseCommand(uint32_t buf){
+    if (memcmp((char *) buf, "cd", 2) == 0)
+    {
+        syscall(6, (uint32_t) "\ncd\n", 5, 0x2);
+        cetak_prompt();
+    } 
+    else if (memcmp((char *) buf, "ls", 2) == 0)
+    {
+        syscall(6, (uint32_t) "\nls\n", 5, 0x2);
+        cetak_prompt();
+    }
+    else
+    {
+        syscall(6, (uint32_t) "\nCommand not found\n", 20, 0x4);
+        cetak_prompt();
+    }
+    
+}
+
 int main(void) {
     struct ClusterBuffer      cl[2]   = {0};
     struct FAT32DriverRequest request = {
@@ -105,10 +96,20 @@ int main(void) {
         .parent_cluster_number = ROOT_CLUSTER_NUMBER,
         .buffer_size           = CLUSTER_SIZE,
     };
-    int32_t retcode;
-    syscall(0, (uint32_t) &request, (uint32_t) &retcode, 0);
+    int32_t retcode = 0;
+    syscall(1, (uint32_t) &request, (uint32_t) &retcode, 0);
+
+    set_current_cluster();
     
     char buf;
+    struct charBuff args = {
+        .buf = &buf,
+        .count = 1,
+    };
+
+    struct StringN input;
+    stringn_make(&input);
+    
 
     cetak_prompt();
     
@@ -116,16 +117,17 @@ int main(void) {
     while (true) {
         syscall(4, (uint32_t) &buf, 0, 0);
         if (buf == '\n') {
-            syscall(6, (uint32_t) "\n", 2, 0x7);
-            cetak_prompt();
+            parseCommand((uint32_t) input.buf);
+            
+            stringn_make(&input);
+        } else if (buf != '\0') {
+            syscall(5, (uint32_t) &args, 2, 0x7);
+            stringn_appendchar(&input, buf);
         }
     }
+
     return 0;
 }
-void set_current_cluster() {
-    struct FAT32DirectoryEntry curr_entry = currentDir.table[0];
-    currentDirCluster = (curr_entry.cluster_high << 16) | curr_entry.cluster_low;
-} 
 
 void mkdir(struct StringN folder_Name){
     struct FAT32DriverRequest request = {
