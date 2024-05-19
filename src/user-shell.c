@@ -199,6 +199,53 @@ void ls() {
     puts("\n", 0x7);
 }
 
+void cp (struct StringN filename) {
+    // memcopy file lalu paste didirectory yang sama
+    uint8_t buf[10 * CLUSTER_SIZE];
+
+    struct FAT32DriverRequest request = {
+        .buf = &buf,
+        .name = "\0\0\0\0\0\0\0\0",
+        .ext = "\0\0\0",
+        .parent_cluster_number = currentDirCluster,
+        .buffer_size = 10 * CLUSTER_SIZE
+    };
+
+    for (uint8_t i = 0; i < filename.len; i++) {
+        request.name[i] = filename.buf[i];
+    }
+
+    int8_t retcode;
+    syscall(0, (uint32_t) &request, (uint32_t) &retcode, 0);
+
+    struct FAT32DriverRequest copy = {
+        .buf = (uint8_t*) request.buf,
+        .name = "copy",
+        .ext = "\0\0\0",
+        .parent_cluster_number = currentDirCluster,
+        .buffer_size = strlen(copy.buf),
+    };
+    syscall(2, (uint32_t) &copy, (uint32_t)&retcode, 0);
+    switch (retcode) {
+        case 0:
+            puts(copy.buf, 0x2);
+            break;
+        case 1:
+            puts("cat: ",0xC);
+            puts(filename.buf, 0xC);
+            puts(": Is a directory", 0xC);
+            break;
+        case 2:
+            puts("cat: ", 0xC);
+            puts(filename.buf, 0xC);
+            puts(": No such file or directory", 0xC);
+            break;
+        default:
+            break;
+    }
+    puts("\n", 0x7);
+}
+
 void cat(struct StringN filename) {
     uint8_t buf[10 * CLUSTER_SIZE];
 
@@ -282,7 +329,7 @@ void parseCommand(struct StringN input){
     }
     else if (memcmp(perintah.buf, "cp", 2) == 0)
     {
-        rm(variabel);
+        cp(variabel);
         cetak_prompt();
     }
     else
