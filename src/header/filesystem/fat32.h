@@ -98,6 +98,8 @@ struct FAT32DirectoryEntry {
 // FAT32 DirectoryTable, containing directory entry table - @param table Table of DirectoryEntry that span within 1 cluster
 struct FAT32DirectoryTable {
     struct FAT32DirectoryEntry table[CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry)];
+    uint32_t parent_cluster_number[256];
+    unsigned int buffer_index;
 } __attribute__((packed));
 
 

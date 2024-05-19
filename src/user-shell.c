@@ -4,6 +4,8 @@
 
 uint32_t currentDirCluster;
 struct FAT32DirectoryTable currentDir;
+struct StringN currentDirPath;
+
 void syscall(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
     __asm__ volatile("mov %0, %%ebx" : /* <Empty> */ : "r"(ebx));
     __asm__ volatile("mov %0, %%ecx" : /* <Empty> */ : "r"(ecx));
@@ -69,6 +71,63 @@ void stringn_appendstr(struct StringN* str, char* buf) {
     }
 }
 
+struct StringN create_path_recursive(uint32_t cluster) {
+    if (cluster == ROOT_CLUSTER_NUMBER) {
+        struct StringN path;
+        stringn_create(&path);
+        stringn_appendstr(&path, "./");
+        return path;
+    }
+    // Create StringN for current folder
+    struct StringN currdir;
+    stringn_create(&currdir);
+
+    // Get current folder name
+    struct FAT32DirectoryTable dir_table;
+    syscall(3, (uint32_t) &dir_table, cluster, 0);
+
+    struct FAT32DirectoryEntry dir_entry = dir_table.table[0];
+
+    // Append folder name to currdir
+    stringn_appendstr(&currdir, dir_entry.name);
+    stringn_appendchar(&currdir, '/');
+
+    // Get parent folder cluster
+    struct FAT32DirectoryEntry parent_entry = dir_table.table[1];
+    uint32_t parent_cluster = (parent_entry.cluster_high << 16) | parent_entry.cluster_low;
+
+    // Get parent folder path
+    struct StringN parent_path = create_path_recursive(parent_cluster);
+    stringn_appendstr(&parent_path, currdir.buf);
+
+    return parent_path;
+}
+
+void create_path() {
+    struct FAT32DirectoryEntry curr_entry = currentDir.table[0];
+    uint32_t cluster = (curr_entry.cluster_high << 16) | curr_entry.cluster_low;
+
+    currentDirPath = create_path_recursive(cluster);
+}
+
+bool strcmp(char* str1, char* str2) {
+    // Get lengths of str1 and str2
+    uint32_t len1 = strlen(str1);
+    uint32_t len2 = strlen(str2);
+
+    // If lengths are not equal, return false
+    if (len1 != len2) return false;
+    
+    // Compare each character
+    while (*str1) {
+        if (*str1 != *str2) return false;
+        str1++;
+        str2++;
+    }
+    
+    return true;
+}
+
 void cetak_prompt() {
     char* os1 = "Istiqomah@OS-IF2230:";
     char* os2 = "/";
@@ -100,6 +159,8 @@ void mkdir(struct StringN folder_Name){
             puts(folder_Name.buf, 0xE);
             puts("'", 0xE);
             puts(" has been created..\n", 0xE);
+
+            syscall(3, currentDirCluster, (uint32_t) &currentDir, 1);
 
             break;
         case 1:
@@ -284,6 +345,67 @@ void cat(struct StringN filename) {
     puts("\n", 0x7);
 }
 
+void cd(struct StringN dirname) {
+    if (dirname.len > 8) {
+        puts("Directory name is too long! (Maximum 8 Characters)", 0xC);
+        return;
+    }
+
+    for (unsigned int i = 0; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
+        struct FAT32DirectoryEntry entry = currentDir.table[i];
+        if (entry.name[0] != '\0') {
+            char fullname[9];
+            memcpy(fullname, entry.name, 8);
+            fullname[8] = '\0'; // Null-terminate string
+
+            if (strcmp(dirname.buf, "..") == 1) {
+                // mengembalikan ke parent directory
+                if (currentDirCluster == 2) {
+                    puts("Already in root directory\n", 0xC);
+                    return;
+                } else {
+                    currentDirCluster = currentDir.parent_cluster_number[currentDir.buffer_index - 1];
+                    currentDir.buffer_index--;
+
+                    // Load the parent directory's table into currentDir
+                    // Here you need to implement the function to read the directory
+                    // e.g., read_directory(currentDirCluster, &currentDir);
+                    syscall(1, currentDirCluster, (uint32_t) &currentDir, 1);
+
+                    // Example pseudo-code
+                    // read_directory(currentDirCluster, &currentDir);
+
+                    puts("Changed directory to parent directory\n", 0x7);
+                    return;
+                }
+            } else if (!strcmp(fullname, dirname.buf) == 0 && (entry.attribute & 0x10)) {
+                // mencari tempat di currentDir.parent_cluster_number yang kosong dari paling kiri, lalu memasukkan currentDirCluster
+
+                currentDir.parent_cluster_number[currentDir.buffer_index] = currentDirCluster;
+                currentDir.buffer_index++;
+
+                // Update currentDirCluster to the new directory's cluster number
+                currentDirCluster = entry.cluster_low | (entry.cluster_high << 16);
+
+
+                // Load the new directory's table into currentDir
+                // Here you need to implement the function to read the directory
+                // e.g., read_directory(currentDirCluster, &currentDir);
+                syscall(1, currentDirCluster, (uint32_t) &currentDir, 1);
+
+                // Example pseudo-code
+                // read_directory(currentDirCluster, &currentDir);
+
+                puts("Changed directory to ", 0x7);
+                puts(entry.name, 0x7);
+                puts("\n", 0x7);
+                return;
+            }
+        }
+    }
+    puts("Directory not found\n", 0xC);
+}
+
 void parseCommand(struct StringN input){
     struct StringN perintah;
     stringn_create(&perintah);
@@ -305,30 +427,37 @@ void parseCommand(struct StringN input){
 
     if (memcmp(perintah.buf, "cd", 2) == 0)
     {
+        puts("\n", 0x7);
+        cd(variabel);
         cetak_prompt();
     } 
     else if (memcmp(perintah.buf, "ls", 2) == 0)
     {
+        puts("\n", 0x7);
         ls();
         cetak_prompt();
     }
     else if (memcmp(perintah.buf, "mkdir", 5) == 0)
     {
+        puts("\n", 0x7);
         mkdir(variabel);
         cetak_prompt();
     }
     else if (memcmp(perintah.buf, "cat", 3) == 0)
     {
+        puts("\n", 0x7);
         cat(variabel);
         cetak_prompt();
     }
     else if (memcmp(perintah.buf, "rm", 2) == 0)
     {
+        puts("\n", 0x7);
         rm(variabel);
         cetak_prompt();
     }
     else if (memcmp(perintah.buf, "cp", 2) == 0)
     {
+        puts("\n", 0x7);
         cp(variabel);
         cetak_prompt();
     }
@@ -341,6 +470,7 @@ void parseCommand(struct StringN input){
 
 int main(void) {    
     currentDirCluster = 2;
+    currentDir.buffer_index = 0;
     syscall(3, currentDirCluster,(uint32_t) &currentDir, 1);
     
     char buf;
