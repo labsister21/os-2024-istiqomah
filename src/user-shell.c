@@ -119,22 +119,57 @@ void mkdir(struct StringN folder_Name){
 }
 
 void ls() {
-    puts("Listing directory contents:\n", 0x7);
     syscall(3, currentDirCluster, (uint32_t) &currentDir, 1);
-    for (unsigned int i = 0; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
+    for (unsigned int i = 2; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
         struct FAT32DirectoryEntry entry = currentDir.table[i];
 
-        // Cek apakah entry kosong
         if (entry.name[0] == '\0') {
-            continue; // Lewati entry kosong
+            continue;
         }
 
-        // Cetak nama entry
         puts(entry.name, 0x7);
 
-        // Cetak spasi antara entry
         puts(" ", 0x7);
     }
+    puts("\n", 0x7);
+}
+
+void cat(struct StringN filename) {
+    uint8_t buf[10 * CLUSTER_SIZE];
+
+    struct FAT32DriverRequest request = {
+        .buf = &buf,
+        .name = "\0\0\0\0\0\0\0\0",
+        .ext = "\0\0\0",
+        .parent_cluster_number = currentDirCluster,
+        .buffer_size = 10 * CLUSTER_SIZE
+    };
+
+    for (uint8_t i = 0; i < filename.len; i++) {
+        request.name[i] = filename.buf[i];
+    }
+
+    int8_t retcode;
+    syscall(0, (uint32_t) &request, (uint32_t) &retcode, 0);
+
+    switch (retcode) {
+        case 0:
+            puts(request.buf, 0x2);
+            break;
+        case 1:
+            puts("cat: ",0xC);
+            puts(filename.buf, 0xC);
+            puts(": Is a directory", 0xC);
+            break;
+        case 2:
+            puts("cat: ", 0xC);
+            puts(filename.buf, 0xC);
+            puts(": No such file or directory", 0xC);
+            break;
+        default:
+            break;
+    }
+    puts("\n", 0x7);
 }
 
 void parseCommand(struct StringN input){
@@ -158,24 +193,21 @@ void parseCommand(struct StringN input){
 
     if (memcmp(perintah.buf, "cd", 2) == 0)
     {
-        puts("\ncd\n", 0x2);
         cetak_prompt();
     } 
     else if (memcmp(perintah.buf, "ls", 2) == 0)
     {
-        puts("\nls\n", 0x2);
         ls();
         cetak_prompt();
     }
     else if (memcmp(perintah.buf, "mkdir", 5) == 0)
     {
-        puts("\nmkdir\n", 0x2);
-
-        puts(variabel.buf, 0x2);
-        puts("\n", 0x2);
-
         mkdir(variabel);
-
+        cetak_prompt();
+    }
+    else if (memcmp(perintah.buf, "cat", 3) == 0)
+    {
+        cat(variabel);
         cetak_prompt();
     }
     else
@@ -185,18 +217,7 @@ void parseCommand(struct StringN input){
     }
 }
 
-int main(void) {
-    // struct ClusterBuffer      cl[2]   = {0};
-    // struct FAT32DriverRequest request = {
-    //     .buf                   = &currentDir,
-    //     .name                  = "root",
-    //     .ext                   = "\0\0\0",
-    //     .parent_cluster_number = ROOT_CLUSTER_NUMBER,
-    //     .buffer_size           = sizeof(struct FAT32DirectoryTable),
-    // };
-    // int32_t retcode = 0;
-    // syscall(1, (uint32_t) &request, (uint32_t) request.buffer_size, 0);
-    
+int main(void) {    
     currentDirCluster = 2;
     syscall(3, currentDirCluster,(uint32_t) &currentDir, 1);
     
@@ -208,7 +229,6 @@ int main(void) {
 
     struct StringN input;
     stringn_create(&input);
-    
 
     cetak_prompt();
     
