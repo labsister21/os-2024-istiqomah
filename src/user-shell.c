@@ -16,7 +16,6 @@ void syscall(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
     __asm__ volatile("int $0x30");
 }
 
-// Helper structs
 struct SyscallPutsArgs {
     char* buf;
     uint32_t count;
@@ -52,7 +51,6 @@ void puts(char* buf, uint32_t color) {
     syscall(6, (uint32_t) buf, strlen(buf), color);
 }
 
-// StringN operations
 void stringn_create(struct StringN* str) {
     memset(str->buf, '\0', 256);
     str->len = 0;
@@ -69,45 +67,6 @@ void stringn_appendstr(struct StringN* str, char* buf) {
         str->len++;
         buf++;
     }
-}
-
-struct StringN create_path_recursive(uint32_t cluster) {
-    if (cluster == ROOT_CLUSTER_NUMBER) {
-        struct StringN path;
-        stringn_create(&path);
-        stringn_appendstr(&path, "./");
-        return path;
-    }
-    // Create StringN for current folder
-    struct StringN currdir;
-    stringn_create(&currdir);
-
-    // Get current folder name
-    struct FAT32DirectoryTable dir_table;
-    syscall(3, (uint32_t) &dir_table, cluster, 0);
-
-    struct FAT32DirectoryEntry dir_entry = dir_table.table[0];
-
-    // Append folder name to currdir
-    stringn_appendstr(&currdir, dir_entry.name);
-    stringn_appendchar(&currdir, '/');
-
-    // Get parent folder cluster
-    struct FAT32DirectoryEntry parent_entry = dir_table.table[1];
-    uint32_t parent_cluster = (parent_entry.cluster_high << 16) | parent_entry.cluster_low;
-
-    // Get parent folder path
-    struct StringN parent_path = create_path_recursive(parent_cluster);
-    stringn_appendstr(&parent_path, currdir.buf);
-
-    return parent_path;
-}
-
-void create_path() {
-    struct FAT32DirectoryEntry curr_entry = currentDir.table[0];
-    uint32_t cluster = (curr_entry.cluster_high << 16) | curr_entry.cluster_low;
-
-    currentDirPath = create_path_recursive(cluster);
 }
 
 bool strcmp(char* str1, char* str2) {
@@ -129,11 +88,13 @@ bool strcmp(char* str1, char* str2) {
 }
 
 void cetak_prompt() {
-    char* os1 = "Istiqomah@OS-IF2230:";
+    char* os1 = "Istiqomah@OS-IF2230";
+    char* os4 = ":";
     char* os2 = "/";
     char* os3 = "$";
     puts(os1, 0x5);
-    puts(os2, 0x6);
+    puts(os4, 0x7);
+    puts(os2, 0x9);
     puts(os3, 0x7);
 }
 
@@ -144,7 +105,7 @@ void mkdir(struct StringN folder_Name){
         .buffer_size = 0,
     };
     if(folder_Name.len > 8){
-        puts("Directory name is too long! (Maximum 8 Characters)", 0xC);
+        puts("Directory name is too long! (Max Characters is 8)", 0xC);
     }
     else{
         for (uint8_t i = 0; i < folder_Name.len; i++) {
@@ -154,11 +115,11 @@ void mkdir(struct StringN folder_Name){
         syscall(2, (uint32_t) &request, (uint32_t) &retcode, 0);
         switch (retcode) {
         case 0:
-            puts("Operation success! " , 0xE);
-            puts("'", 0xE);
-            puts(folder_Name.buf, 0xE);
-            puts("'", 0xE);
-            puts(" has been created..\n", 0xE);
+            puts("Make directory success! " , 0x2);
+            puts("'", 0x2);
+            puts(folder_Name.buf, 0x2);
+            puts("'", 0x2);
+            puts(" has been created..\n", 0x2);
 
             syscall(3, currentDirCluster, (uint32_t) &currentDir, 1);
 
@@ -170,7 +131,7 @@ void mkdir(struct StringN folder_Name){
             puts(folder_Name.buf, 0xC);
             puts("'", 0xC);
             
-            puts(": File exists", 0xC);
+            puts(": File exists\n", 0xC);
             
             break;
         default:
@@ -192,10 +153,7 @@ void rm(struct StringN folder){
         .bg_color = 0x0
     };
     if(folder.len > 8){
-        args.buf = "rm: cannot remove : name is too long! (Maximum 8 Characters)";
-        args.count = strlen(args.buf);
-        args.fg_color = 0xC;
-        puts(args.buf, 0x2);
+        puts("rm: cannot remove : name is too long! (Max Characters is 8)", 0xC);
     }
     else{
        for (uint8_t i = 0; i < folder.len; i++) {
@@ -205,40 +163,16 @@ void rm(struct StringN folder){
         syscall(8,(uint32_t) &request, (uint32_t) &retcode, 0);
         switch (retcode){
             case 0:
-                args.buf = "Operation success! ";
-                args.count = strlen(args.buf);
-                args.fg_color = 0xE;
-                puts(args.buf, 0x2);
-                args.buf = "'";
-                args.count = strlen(args.buf);
-                args.fg_color = 0xE;
-                puts(args.buf, 0x2);
-                args.buf = folder.buf;
-                args.count = strlen(args.buf);
-                args.fg_color = 0xE;
-                puts(args.buf, 0x2);
-                args.buf = "'";
-                args.count = strlen(args.buf);
-                args.fg_color = 0xE;
-                puts(args.buf, 0x2);
-                args.buf = "has been removed..";
-                args.count = strlen(args.buf);
-                args.fg_color = 0xE;
-                puts(args.buf, 0x2);
+                puts("Remove success! ", 0x2);
+                puts("'", 0x2);
+                puts(folder.buf, 0x2);
+                puts("'", 0x2);
+                puts(" has been removed..\n", 0x2);
                 break;
             case 1:
-                args.buf = "rm: cannot remove '";
-                args.count = strlen(args.buf);
-                args.fg_color = 0xC;
-                puts(args.buf, 0x2);
-                args.buf = folder.buf;
-                args.count = strlen(args.buf);
-                args.fg_color = 0xC;
-                puts(args.buf, 0x2);
-                args.buf = "': No such file or directory";
-                args.count = strlen(args.buf);
-                args.fg_color = 0xC;
-                puts(args.buf, 0x2);
+                puts("rm: cannot remove '", 0xC);
+                puts(folder.buf, 0xC);
+                puts("': No such file or directory", 0xC);
                 break;
         }
     }
@@ -248,20 +182,16 @@ void ls() {
     syscall(3, currentDirCluster, (uint32_t) &currentDir, 1);
     for (unsigned int i = 2; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
         struct FAT32DirectoryEntry entry = currentDir.table[i];
-
         if (entry.name[0] == '\0') {
             continue;
         }
-
-        puts(entry.name, 0x7);
-
-        puts(" ", 0x7);
+        puts(entry.name, 0x2);
+        puts(" ", 0x2);
     }
-    puts("\n", 0x7);
+    puts("\n", 0x2);
 }
 
 void cp (struct StringN filename) {
-    // memcopy file lalu paste didirectory yang sama
     uint8_t buf[10 * CLUSTER_SIZE];
 
     struct FAT32DriverRequest request = {
@@ -356,7 +286,7 @@ void cd(struct StringN dirname) {
         if (entry.name[0] != '\0') {
             char fullname[9];
             memcpy(fullname, entry.name, 8);
-            fullname[8] = '\0'; // Null-terminate string
+            fullname[8] = '\0'; 
 
             if (strcmp(dirname.buf, "..") == 1) {
                 // mengembalikan ke parent directory
@@ -368,14 +298,8 @@ void cd(struct StringN dirname) {
                     currentDir.buffer_index--;
 
                     // Load the parent directory's table into currentDir
-                    // Here you need to implement the function to read the directory
-                    // e.g., read_directory(currentDirCluster, &currentDir);
                     syscall(1, currentDirCluster, (uint32_t) &currentDir, 1);
-
-                    // Example pseudo-code
-                    // read_directory(currentDirCluster, &currentDir);
-
-                    puts("Changed directory to parent directory\n", 0x7);
+                    puts("Changed directory to parent directory\n", 0x2);
                     return;
                 }
             } else if (!strcmp(fullname, dirname.buf) == 0 && (entry.attribute & 0x10)) {
@@ -389,16 +313,10 @@ void cd(struct StringN dirname) {
 
 
                 // Load the new directory's table into currentDir
-                // Here you need to implement the function to read the directory
-                // e.g., read_directory(currentDirCluster, &currentDir);
                 syscall(1, currentDirCluster, (uint32_t) &currentDir, 1);
-
-                // Example pseudo-code
-                // read_directory(currentDirCluster, &currentDir);
-
-                puts("Changed directory to ", 0x7);
-                puts(entry.name, 0x7);
-                puts("\n", 0x7);
+                puts("Changed directory to ", 0x2);
+                puts(entry.name, 0x2);
+                puts("\n", 0x2);
                 return;
             }
         }
@@ -463,7 +381,7 @@ void parseCommand(struct StringN input){
     }
     else
     {
-        puts("\nCommand not found\n", 0x4);
+        puts("\nCommand not found\n", 0xC);
         cetak_prompt();
     }
 }
