@@ -324,6 +324,28 @@ void cd(struct StringN dirname) {
     puts("Directory not found\n", 0xC);
 }
 
+void find(struct StringN filename) {
+    for (unsigned int i = 0; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
+        struct FAT32DirectoryEntry entry = currentDir.table[i];
+        if (entry.name[0] != '\0') {
+            char fullname[9];
+            memcpy(fullname, entry.name, 8);
+            fullname[8] = '\0'; 
+
+            // puts filename with the format "File found in cluster <cluster_number>: <filename>"
+            if (strcmp(fullname, filename.buf) == 1) {
+                char cluster_number[11]; // Buffer to hold the string representation of the integer
+                puts("File found: ", 0x2);
+                puts(fullname, 0x2);
+                puts("\n", 0x2);
+                return;
+            }
+        }
+    }
+    puts("File not found\n", 0xC);
+}
+
+
 void parseCommand(struct StringN input){
     struct StringN perintah;
     stringn_create(&perintah);
@@ -377,6 +399,12 @@ void parseCommand(struct StringN input){
     {
         puts("\n", 0x7);
         cp(variabel);
+        cetak_prompt();
+    }
+    else if (memcmp(perintah.buf, "find", 4) == 0)
+    {
+        puts("\n", 0x7);
+        find(variabel);
         cetak_prompt();
     }
     else
