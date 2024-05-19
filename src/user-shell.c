@@ -118,6 +118,71 @@ void mkdir(struct StringN folder_Name){
     }
 }
 
+void rm(struct StringN folder){
+    struct FAT32DriverRequest request = {
+        .name = "\0\0\0\0\0\0\0\0",
+        .parent_cluster_number = currentDirCluster,
+        .buffer_size = 0,
+    };
+    struct SyscallPutsArgs args = {
+        .buf = "Directory ",
+        .count = strlen(args.buf),
+        .fg_color = 0xC,
+        .bg_color = 0x0
+    };
+    if(folder.len > 8){
+        args.buf = "rm: cannot remove : name is too long! (Maximum 8 Characters)";
+        args.count = strlen(args.buf);
+        args.fg_color = 0xC;
+        puts(args.buf, 0x2);
+    }
+    else{
+       for (uint8_t i = 0; i < folder.len; i++) {
+            request.name[i] = folder.buf[i];
+        }
+        int8_t retcode;
+        syscall(8,(uint32_t) &request, (uint32_t) &retcode, 0);
+        switch (retcode){
+            case 0:
+                args.buf = "Operation success! ";
+                args.count = strlen(args.buf);
+                args.fg_color = 0xE;
+                puts(args.buf, 0x2);
+                args.buf = "'";
+                args.count = strlen(args.buf);
+                args.fg_color = 0xE;
+                puts(args.buf, 0x2);
+                args.buf = folder.buf;
+                args.count = strlen(args.buf);
+                args.fg_color = 0xE;
+                puts(args.buf, 0x2);
+                args.buf = "'";
+                args.count = strlen(args.buf);
+                args.fg_color = 0xE;
+                puts(args.buf, 0x2);
+                args.buf = "has been removed..";
+                args.count = strlen(args.buf);
+                args.fg_color = 0xE;
+                puts(args.buf, 0x2);
+                break;
+            case 1:
+                args.buf = "rm: cannot remove '";
+                args.count = strlen(args.buf);
+                args.fg_color = 0xC;
+                puts(args.buf, 0x2);
+                args.buf = folder.buf;
+                args.count = strlen(args.buf);
+                args.fg_color = 0xC;
+                puts(args.buf, 0x2);
+                args.buf = "': No such file or directory";
+                args.count = strlen(args.buf);
+                args.fg_color = 0xC;
+                puts(args.buf, 0x2);
+                break;
+        }
+    }
+}
+
 void ls() {
     syscall(3, currentDirCluster, (uint32_t) &currentDir, 1);
     for (unsigned int i = 2; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
@@ -208,6 +273,16 @@ void parseCommand(struct StringN input){
     else if (memcmp(perintah.buf, "cat", 3) == 0)
     {
         cat(variabel);
+        cetak_prompt();
+    }
+    else if (memcmp(perintah.buf, "rm", 2) == 0)
+    {
+        rm(variabel);
+        cetak_prompt();
+    }
+    else if (memcmp(perintah.buf, "cp", 2) == 0)
+    {
+        rm(variabel);
         cetak_prompt();
     }
     else
