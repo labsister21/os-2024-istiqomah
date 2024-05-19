@@ -254,7 +254,7 @@ void cat(struct StringN filename) {
 
     int8_t retcode;
     syscall(0, (uint32_t) &request, (uint32_t) &retcode, 0);
-
+    
     switch (retcode) {
         case 0:
             puts(request.buf, 0x2);
@@ -334,7 +334,6 @@ void find(struct StringN filename) {
 
             // puts filename with the format "File found in cluster <cluster_number>: <filename>"
             if (strcmp(fullname, filename.buf) == 1) {
-                char cluster_number[11]; // Buffer to hold the string representation of the integer
                 puts("File found: ", 0x2);
                 puts(fullname, 0x2);
                 puts("\n", 0x2);
@@ -345,6 +344,74 @@ void find(struct StringN filename) {
     puts("File not found\n", 0xC);
 }
 
+void mv(struct StringN filename, struct StringN dest) {
+    // memindahkan file dari currentDirCluster ke dest
+    // jika dest adalah direktori, maka file dipindahkan ke dalam direktori tersebut
+    uint8_t buf[10 * CLUSTER_SIZE];
+
+    struct FAT32DriverRequest request = {
+        .buf = &buf,
+        .name = "\0\0\0\0\0\0\0\0",
+        .ext = "\0\0\0",
+        .parent_cluster_number = currentDirCluster,
+        .buffer_size = 10 * CLUSTER_SIZE
+    };
+    for (uint8_t i = 0; i < filename.len; i++) {
+            request.name[i] = filename.buf[i];
+    }
+
+    int retcode;
+    syscall(0, (uint32_t) &request, (uint32_t) &retcode, 0);
+    struct FAT32DriverRequest copy = {
+        .buf = (uint8_t*) request.buf,
+        .name = "copy",
+        .ext = "\0\0\0",
+        .parent_cluster_number = currentDirCluster,
+        .buffer_size = strlen(copy.buf),
+    };
+
+    if (dest.len > 8) {
+        puts("Destination name is too long! (Maximum 8 Characters)", 0xC);
+        return;
+    }
+
+    for (unsigned int i = 0; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
+        struct FAT32DirectoryEntry entry = currentDir.table[i];
+        if (entry.name[0] != '\0') {
+            char fullname[9];
+            memcpy(fullname, entry.name, 8);
+            fullname[8] = '\0'; 
+
+            if (!strcmp(fullname, filename.buf) == 0) {
+                // File found, now check if dest is a directory
+                if (entry.attribute == 0x0) {
+                    // Move file to the destination directory
+                    cd(dest);
+                    int retcode;
+                    syscall(2, (uint32_t) &copy.buf, (uint32_t) &retcode, 0);
+                    switch (retcode) {
+                        case 0:
+                            puts("File moved successfully\n", 0x2);
+                            // syscall(8, (uint32_t) &request, (uint32_t) &retcode, 0);
+                            break;
+                        case 1:
+                            puts("mv: cannot move file '", 0xC);
+                            puts(filename.buf, 0xC);
+                            puts("': No such file or directory\n", 0xC);
+                            break;
+                        default:
+                            break;
+                    }
+                    return;
+                } else {
+                    puts("mv: destination is not a directory\n", 0xC);
+                    return;
+                }
+            }
+        }
+    }
+    puts("File not found\n", 0xC);
+}
 
 void parseCommand(struct StringN input){
     struct StringN perintah;
@@ -362,8 +429,22 @@ void parseCommand(struct StringN input){
     stringn_create(&variabel);
     i++;
     for (i = i; i < input.len; i++) {
+        if (input.buf[i] == ' ') {
+            break;
+        }
         stringn_appendchar(&variabel, input.buf[i]);
     }
+
+    struct StringN variabel2;
+    stringn_create(&variabel2);
+    i++;
+    for (i = i; i < input.len; i++) {
+        if (input.buf[i] == ' ') {
+            break;
+        }
+        stringn_appendchar(&variabel2, input.buf[i]);
+    }
+    
 
     if (memcmp(perintah.buf, "cd", 2) == 0)
     {
@@ -405,6 +486,12 @@ void parseCommand(struct StringN input){
     {
         puts("\n", 0x7);
         find(variabel);
+        cetak_prompt();
+    }
+    else if (memcmp(perintah.buf, "mv", 2) == 0)
+    {
+        puts("\n", 0x7);
+        mv(variabel, variabel2);
         cetak_prompt();
     }
     else
