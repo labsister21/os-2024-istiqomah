@@ -178,6 +178,36 @@ void rm(struct StringN folder){
     }
 }
 
+void rmNoPrint(struct StringN folder){
+    struct FAT32DriverRequest request = {
+        .name = "\0\0\0\0\0\0\0\0",
+        .parent_cluster_number = currentDirCluster,
+        .buffer_size = 0,
+    };
+    struct SyscallPutsArgs args = {
+        .buf = "Directory ",
+        .count = strlen(args.buf),
+        .fg_color = 0xC,
+        .bg_color = 0x0
+    };
+    if(folder.len > 8){
+        puts("rm: cannot remove : name is too long! (Max Characters is 8)", 0xC);
+    }
+    else{
+       for (uint8_t i = 0; i < folder.len; i++) {
+            request.name[i] = folder.buf[i];
+        }
+        int8_t retcode;
+        syscall(8,(uint32_t) &request, (uint32_t) &retcode, 0);
+        switch (retcode){
+            case 0:
+                break;
+            case 1:
+                break;
+        }
+    }
+}
+
 void ls() {
     syscall(3, currentDirCluster, (uint32_t) &currentDir, 1);
     for (unsigned int i = 2; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
@@ -324,6 +354,49 @@ void cd(struct StringN dirname) {
     puts("Directory not found\n", 0xC);
 }
 
+void cdNoPrint(struct StringN dirname) {
+    if (dirname.len > 8) {
+        puts("Directory name is too long! (Maximum 8 Characters)", 0xC);
+        return;
+    }
+
+    for (unsigned int i = 0; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
+        struct FAT32DirectoryEntry entry = currentDir.table[i];
+        if (entry.name[0] != '\0') {
+            char fullname[9];
+            memcpy(fullname, entry.name, 8);
+            fullname[8] = '\0'; 
+
+            if (strcmp(dirname.buf, "..") == 1) {
+                // mengembalikan ke parent directory
+                if (currentDirCluster == 2) {
+                    return;
+                } else {
+                    currentDirCluster = currentDir.parent_cluster_number[currentDir.buffer_index - 1];
+                    currentDir.buffer_index--;
+
+                    // Load the parent directory's table into currentDir
+                    syscall(1, currentDirCluster, (uint32_t) &currentDir, 1);
+                    return;
+                }
+            } else if (!strcmp(fullname, dirname.buf) == 0 && (entry.attribute & 0x10)) {
+                // mencari tempat di currentDir.parent_cluster_number yang kosong dari paling kiri, lalu memasukkan currentDirCluster
+
+                currentDir.parent_cluster_number[currentDir.buffer_index] = currentDirCluster;
+                currentDir.buffer_index++;
+
+                // Update currentDirCluster to the new directory's cluster number
+                currentDirCluster = entry.cluster_low | (entry.cluster_high << 16);
+
+
+                // Load the new directory's table into currentDir
+                syscall(1, currentDirCluster, (uint32_t) &currentDir, 1);
+                return;
+            }
+        }
+    }
+}
+
 void find(struct StringN filename) {
     for (unsigned int i = 0; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
         struct FAT32DirectoryEntry entry = currentDir.table[i];
@@ -360,16 +433,6 @@ void mv(struct StringN filename, struct StringN dest) {
             request.name[i] = filename.buf[i];
     }
 
-    int retcode;
-    syscall(0, (uint32_t) &request, (uint32_t) &retcode, 0);
-    struct FAT32DriverRequest copy = {
-        .buf = (uint8_t*) request.buf,
-        .name = "copy",
-        .ext = "\0\0\0",
-        .parent_cluster_number = currentDirCluster,
-        .buffer_size = strlen(copy.buf),
-    };
-
     if (dest.len > 8) {
         puts("Destination name is too long! (Maximum 8 Characters)", 0xC);
         return;
@@ -382,17 +445,39 @@ void mv(struct StringN filename, struct StringN dest) {
             memcpy(fullname, entry.name, 8);
             fullname[8] = '\0'; 
 
-            if (!strcmp(fullname, filename.buf) == 0) {
+            // *untuk debugging, print data dari entry
+            // puts("Name: ", 0x2);
+            // puts(entry.name, 0x2);
+            // puts("\n", 0x2);
+
+            if (!strcmp(fullname, dest.buf) == 0) {
                 // File found, now check if dest is a directory
-                if (entry.attribute == 0x0) {
+                if (entry.attribute == 0x10) {
                     // Move file to the destination directory
-                    cd(dest);
+                    cdNoPrint(dest);
                     int retcode;
+                    syscall(0, (uint32_t) &request, (uint32_t) &retcode, 0);
+                    struct FAT32DriverRequest copy = {
+                        .buf = (uint8_t*) request.buf,
+                        .ext = "\0\0\0",
+                        .parent_cluster_number = currentDirCluster,
+                        .buffer_size = strlen(copy.buf),
+                    };
+                    memcpy(copy.name, filename.buf, 8);
                     syscall(2, (uint32_t) &copy.buf, (uint32_t) &retcode, 0);
                     switch (retcode) {
                         case 0:
                             puts("File moved successfully\n", 0x2);
-                            // syscall(8, (uint32_t) &request, (uint32_t) &retcode, 0);
+                            struct StringN destPath;
+                            stringn_create(&destPath);
+                            
+                            for (uint8_t i = 0; i < 2; i++) {
+                                stringn_appendchar(&destPath, '.');
+                            }
+                            
+                            cdNoPrint(destPath);
+
+                            rmNoPrint(filename);
                             break;
                         case 1:
                             puts("mv: cannot move file '", 0xC);
