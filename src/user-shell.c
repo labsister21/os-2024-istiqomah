@@ -4,7 +4,8 @@
 
 uint32_t currentDirCluster;
 struct FAT32DirectoryTable currentDir;
-struct StringN currentDirPath;
+struct StringBuff currentDirPath;
+char dir_buff[256][8];
 
 void syscall(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
     __asm__ volatile("mov %0, %%ebx" : /* <Empty> */ : "r"(ebx));
@@ -28,7 +29,7 @@ void set_current_cluster() {
     currentDirCluster = (curr_entry.cluster_high << 16) | curr_entry.cluster_low;
 }
 
-struct StringN {
+struct StringBuff {
     char buf[256];
     uint32_t len;
 };
@@ -38,7 +39,7 @@ struct charBuff {
     uint32_t count;
 };
 
-uint32_t strlen(char* buf) {
+uint32_t strLength(char* buf) {
     uint32_t count = 0;
     while (*buf != '\0') {
         count++;
@@ -48,31 +49,23 @@ uint32_t strlen(char* buf) {
 }
 
 void puts(char* buf, uint32_t color) {
-    syscall(6, (uint32_t) buf, strlen(buf), color);
+    syscall(6, (uint32_t) buf, strLength(buf), color);
 }
 
-void stringn_create(struct StringN* str) {
+void stringBuff_create(struct StringBuff* str) {
     memset(str->buf, '\0', 256);
     str->len = 0;
 }
 
-void stringn_appendchar(struct StringN* str, char c) {
+void stringBuffInputChar(struct StringBuff* str, char c) {
     str->buf[str->len] = c;
     str->len++;
 }
 
-void stringn_appendstr(struct StringN* str, char* buf) {
-    while (*buf) {
-        str->buf[str->len] = *buf;
-        str->len++;
-        buf++;
-    }
-}
-
-bool strcmp(char* str1, char* str2) {
+bool strCompare(char* str1, char* str2) {
     // Get lengths of str1 and str2
-    uint32_t len1 = strlen(str1);
-    uint32_t len2 = strlen(str2);
+    uint32_t len1 = strLength(str1);
+    uint32_t len2 = strLength(str2);
 
     // If lengths are not equal, return false
     if (len1 != len2) return false;
@@ -88,17 +81,29 @@ bool strcmp(char* str1, char* str2) {
 }
 
 void cetak_prompt() {
-    char* os1 = "Istiqomah@OS-IF2230";
-    char* os4 = ":";
-    char* os2 = "/";
-    char* os3 = "$";
-    puts(os1, 0x5);
-    puts(os4, 0x7);
-    puts(os2, 0x9);
-    puts(os3, 0x7);
+    // cetak prompt sesuai dengan parent directory name
+    syscall(3, currentDirCluster, (uint32_t) &currentDir, 1);
+    struct FAT32DirectoryEntry curr_entry = currentDir.table[0];
+    puts("Istiqomah@OS-IF2230:", 0x5);
+    puts("/", 0x9);
+    
+    // memasukkan curr_entry.name ke dalam dirr_buff
+    for (uint8_t i = 0; i < 8; i++) {
+        dir_buff[currentDir.buffer_index][i] = curr_entry.name[i];
+    }
+
+    //print dir_buff yang berisi directory mana
+    for (uint8_t i = 0; i <= currentDir.buffer_index; i++) {
+        puts(dir_buff[i], 0x9);
+        // kalau bukan direktori terakhir, print "/", kalau sudah, tidak perlu print apapun
+        if (i != currentDir.buffer_index) {
+            puts("/", 0x9);
+        }
+    }
+    puts("$ ", 0x7);
 }
 
-void mkdir(struct StringN folder_Name){
+void mkdir(struct StringBuff folder_Name){
     struct FAT32DriverRequest request = {
         .name = "\0\0\0\0\0\0\0\0",
         .parent_cluster_number = currentDirCluster,
@@ -140,7 +145,7 @@ void mkdir(struct StringN folder_Name){
     }
 }
 
-void rm(struct StringN folder){
+void rm(struct StringBuff folder){
     struct FAT32DriverRequest request = {
         .name = "\0\0\0\0\0\0\0\0",
         .parent_cluster_number = currentDirCluster,
@@ -148,7 +153,7 @@ void rm(struct StringN folder){
     };
     struct SyscallPutsArgs args = {
         .buf = "Directory ",
-        .count = strlen(args.buf),
+        .count = strLength(args.buf),
         .fg_color = 0xC,
         .bg_color = 0x0
     };
@@ -178,7 +183,7 @@ void rm(struct StringN folder){
     }
 }
 
-void rmNoPrint(struct StringN folder){
+void rmNoPrint(struct StringBuff folder){
     struct FAT32DriverRequest request = {
         .name = "\0\0\0\0\0\0\0\0",
         .parent_cluster_number = currentDirCluster,
@@ -186,7 +191,7 @@ void rmNoPrint(struct StringN folder){
     };
     struct SyscallPutsArgs args = {
         .buf = "Directory ",
-        .count = strlen(args.buf),
+        .count = strLength(args.buf),
         .fg_color = 0xC,
         .bg_color = 0x0
     };
@@ -221,7 +226,7 @@ void ls() {
     puts("\n", 0x2);
 }
 
-void cp (struct StringN filename) {
+void cp (struct StringBuff filename) {
     uint8_t buf[10 * CLUSTER_SIZE];
 
     struct FAT32DriverRequest request = {
@@ -244,7 +249,7 @@ void cp (struct StringN filename) {
         .name = "copy",
         .ext = "\0\0\0",
         .parent_cluster_number = currentDirCluster,
-        .buffer_size = strlen(copy.buf),
+        .buffer_size = strLength(copy.buf),
     };
     syscall(2, (uint32_t) &copy, (uint32_t)&retcode, 0);
     switch (retcode) {
@@ -267,7 +272,7 @@ void cp (struct StringN filename) {
     puts("\n", 0x7);
 }
 
-void cat(struct StringN filename) {
+void cat(struct StringBuff filename) {
     uint8_t buf[10 * CLUSTER_SIZE];
 
     struct FAT32DriverRequest request = {
@@ -305,7 +310,7 @@ void cat(struct StringN filename) {
     puts("\n", 0x7);
 }
 
-void cd(struct StringN dirname) {
+void cd(struct StringBuff dirname) {
     if (dirname.len > 8) {
         puts("Directory name is too long! (Maximum 8 Characters)", 0xC);
         return;
@@ -318,7 +323,7 @@ void cd(struct StringN dirname) {
             memcpy(fullname, entry.name, 8);
             fullname[8] = '\0'; 
 
-            if (strcmp(dirname.buf, "..") == 1) {
+            if (strCompare(dirname.buf, "..") == 1) {
                 // mengembalikan ke parent directory
                 if (currentDirCluster == 2) {
                     puts("Already in root directory\n", 0xC);
@@ -332,7 +337,7 @@ void cd(struct StringN dirname) {
                     puts("Changed directory to parent directory\n", 0x2);
                     return;
                 }
-            } else if (!strcmp(fullname, dirname.buf) == 0 && (entry.attribute & 0x10)) {
+            } else if (!strCompare(fullname, dirname.buf) == 0 && (entry.attribute & 0x10)) {
                 // mencari tempat di currentDir.parent_cluster_number yang kosong dari paling kiri, lalu memasukkan currentDirCluster
 
                 currentDir.parent_cluster_number[currentDir.buffer_index] = currentDirCluster;
@@ -344,9 +349,6 @@ void cd(struct StringN dirname) {
 
                 // Load the new directory's table into currentDir
                 syscall(1, currentDirCluster, (uint32_t) &currentDir, 1);
-                puts("Changed directory to ", 0x2);
-                puts(entry.name, 0x2);
-                puts("\n", 0x2);
                 return;
             }
         }
@@ -354,7 +356,7 @@ void cd(struct StringN dirname) {
     puts("Directory not found\n", 0xC);
 }
 
-void cdNoPrint(struct StringN dirname) {
+void cdNoPrint(struct StringBuff dirname) {
     if (dirname.len > 8) {
         puts("Directory name is too long! (Maximum 8 Characters)", 0xC);
         return;
@@ -367,7 +369,7 @@ void cdNoPrint(struct StringN dirname) {
             memcpy(fullname, entry.name, 8);
             fullname[8] = '\0'; 
 
-            if (strcmp(dirname.buf, "..") == 1) {
+            if (strCompare(dirname.buf, "..") == 1) {
                 // mengembalikan ke parent directory
                 if (currentDirCluster == 2) {
                     return;
@@ -379,7 +381,7 @@ void cdNoPrint(struct StringN dirname) {
                     syscall(1, currentDirCluster, (uint32_t) &currentDir, 1);
                     return;
                 }
-            } else if (!strcmp(fullname, dirname.buf) == 0 && (entry.attribute & 0x10)) {
+            } else if (!strCompare(fullname, dirname.buf) == 0 && (entry.attribute & 0x10)) {
                 // mencari tempat di currentDir.parent_cluster_number yang kosong dari paling kiri, lalu memasukkan currentDirCluster
 
                 currentDir.parent_cluster_number[currentDir.buffer_index] = currentDirCluster;
@@ -397,7 +399,7 @@ void cdNoPrint(struct StringN dirname) {
     }
 }
 
-void find(struct StringN filename) {
+void find(struct StringBuff filename) {
     for (unsigned int i = 0; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
         struct FAT32DirectoryEntry entry = currentDir.table[i];
         if (entry.name[0] != '\0') {
@@ -406,7 +408,7 @@ void find(struct StringN filename) {
             fullname[8] = '\0'; 
 
             // puts filename with the format "File found in cluster <cluster_number>: <filename>"
-            if (strcmp(fullname, filename.buf) == 1) {
+            if (strCompare(fullname, filename.buf) == 1) {
                 puts("File found: ", 0x2);
                 puts(fullname, 0x2);
                 puts("\n", 0x2);
@@ -417,7 +419,7 @@ void find(struct StringN filename) {
     puts("File not found\n", 0xC);
 }
 
-void mv(struct StringN filename, struct StringN dest) {
+void mv(struct StringBuff filename, struct StringBuff dest) {
     // memindahkan file dari currentDirCluster ke dest
     // jika dest adalah direktori, maka file dipindahkan ke dalam direktori tersebut
     uint8_t buf[10 * CLUSTER_SIZE];
@@ -450,7 +452,7 @@ void mv(struct StringN filename, struct StringN dest) {
             // puts(entry.name, 0x2);
             // puts("\n", 0x2);
 
-            if (!strcmp(fullname, dest.buf) == 0) {
+            if (!strCompare(fullname, dest.buf) == 0) {
                 // File found, now check if dest is a directory
                 if (entry.attribute == 0x10) {
                     // Move file to the destination directory
@@ -461,23 +463,25 @@ void mv(struct StringN filename, struct StringN dest) {
                         .buf = (uint8_t*) request.buf,
                         .ext = "\0\0\0",
                         .parent_cluster_number = currentDirCluster,
-                        .buffer_size = strlen(copy.buf),
+                        .buffer_size = strLength(copy.buf),
                     };
                     memcpy(copy.name, filename.buf, 8);
                     syscall(2, (uint32_t) &copy.buf, (uint32_t) &retcode, 0);
                     switch (retcode) {
                         case 0:
                             puts("File moved successfully\n", 0x2);
-                            struct StringN destPath;
-                            stringn_create(&destPath);
+                            struct StringBuff destPath;
+                            stringBuff_create(&destPath);
                             
                             for (uint8_t i = 0; i < 2; i++) {
-                                stringn_appendchar(&destPath, '.');
+                                stringBuffInputChar(&destPath, '.');
                             }
                             
                             cdNoPrint(destPath);
 
                             rmNoPrint(filename);
+
+                            syscall(3, currentDirCluster, (uint32_t) &currentDir, 1);
                             break;
                         case 1:
                             puts("mv: cannot move file '", 0xC);
@@ -498,36 +502,36 @@ void mv(struct StringN filename, struct StringN dest) {
     puts("File not found\n", 0xC);
 }
 
-void parseCommand(struct StringN input){
-    struct StringN perintah;
-    stringn_create(&perintah);
+void parseCommand(struct StringBuff input){
+    struct StringBuff perintah;
+    stringBuff_create(&perintah);
 
     uint32_t i;
     for (i = 0; i < input.len; i++) {
         if (input.buf[i] == ' ') {
             break;
         }
-        stringn_appendchar(&perintah, input.buf[i]);
+        stringBuffInputChar(&perintah, input.buf[i]);
     }
 
-    struct StringN variabel;
-    stringn_create(&variabel);
+    struct StringBuff variabel;
+    stringBuff_create(&variabel);
     i++;
     for (i = i; i < input.len; i++) {
         if (input.buf[i] == ' ') {
             break;
         }
-        stringn_appendchar(&variabel, input.buf[i]);
+        stringBuffInputChar(&variabel, input.buf[i]);
     }
 
-    struct StringN variabel2;
-    stringn_create(&variabel2);
+    struct StringBuff variabel2;
+    stringBuff_create(&variabel2);
     i++;
     for (i = i; i < input.len; i++) {
         if (input.buf[i] == ' ') {
             break;
         }
-        stringn_appendchar(&variabel2, input.buf[i]);
+        stringBuffInputChar(&variabel2, input.buf[i]);
     }
     
 
@@ -597,8 +601,8 @@ int main(void) {
         .count = 1,
     };
 
-    struct StringN input;
-    stringn_create(&input);
+    struct StringBuff input;
+    stringBuff_create(&input);
 
     cetak_prompt();
     
@@ -608,10 +612,10 @@ int main(void) {
         if (buf == '\n') {
             parseCommand(input);
             
-            stringn_create(&input);
+            stringBuff_create(&input);
         } else if (buf != '\0') {
             syscall(5, (uint32_t) &args, 2, 0x7);
-            stringn_appendchar(&input, buf);
+            stringBuffInputChar(&input, buf);
         }
     }
 
