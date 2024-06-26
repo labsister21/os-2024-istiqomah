@@ -5,6 +5,7 @@
 
 // Some GDT Constant
 #define GDT_MAX_ENTRY_COUNT 32
+
 /**
  * As kernel SegmentDescriptor for code located at index 1 in GDT, 
  * segment selector is sizeof(SegmentDescriptor) * 1 = 0x8
@@ -34,7 +35,30 @@ struct SegmentDescriptor {
     uint8_t base_mid;
     uint8_t type_bit   : 4;
     uint8_t non_system : 1;
-    // TODO : Continue SegmentDescriptor definition
+    // Last 8-bit (Bit 48 to 63)
+    // uint8_t base_high;
+    // uint8_t segment_limit_high;
+    // uint8_t type_bit_high : 1;
+    // uint8_t descriptor_privilege_level : 2;
+    // uint8_t present : 1;
+    // uint8_t segment_limit_high_bit : 4;
+    // uint8_t available : 1;
+    // uint8_t long_mode : 1;
+    // uint8_t default_operation_size : 1;
+    // uint8_t granularity : 1;
+    // uint8_t base_high_bit : 4;
+    
+    uint8_t DPL : 2;
+    uint8_t P : 1;
+    // ini 47
+
+    uint8_t limit: 4;
+    uint8_t AVL : 1;
+    uint8_t L : 1;
+    uint8_t DB : 1;
+    uint8_t G : 1;
+
+    uint8_t base_high;
 
 } __attribute__((packed));
 
@@ -58,5 +82,12 @@ struct GDTR {
     uint16_t                     size;
     struct GlobalDescriptorTable *address;
 } __attribute__((packed));
+
+#define GDT_USER_CODE_SEGMENT_SELECTOR 0x18
+#define GDT_USER_DATA_SEGMENT_SELECTOR 0x20
+#define GDT_TSS_SELECTOR               0x28
+
+// Set GDT_TSS_SELECTOR with proper TSS values, accessing _interrupt_tss_entry
+void gdt_install_tss(void);
 
 #endif
